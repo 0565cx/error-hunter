@@ -1,45 +1,88 @@
-# Error Hunter（AI审题 Skill）
+# Error Hunter（AI 审题 Skill）
 
-面向“大题量、多模型、多轮次”的 AI 面试题审核流程。  
-核心目标：稳定批量审题、可断点续跑、看板可视化、按轮次正确输出。
+`Error Hunter` 是一个用于“批量 AI 面试题审核”的 Cursor Skill。它适用于题量很大、模型较多、审核轮次较长的场景，重点解决以下问题：如何稳定推进批量审核、如何在模型卡住时从断点恢复、如何通过可视化看板掌握进度，以及如何按轮次输出正确的交付物。
 
-## 一句话启动
+如果你是第一次使用，建议先通读本 README，再查看仓库中的 `command-templates.md`，直接复制口令开始执行。
+
+## Skill 位置与名称
+
+- Skill 目录：`.cursor/skills/batch-interview-question-audit/`
+- Skill 名称（frontmatter `name`）：`error-hunter`
+
+## 这个 Skill 解决什么问题
+
+在真实业务中，批量审题通常会遇到两类难题：
+
+1. **进度问题**：批次很多（例如 20+ 批），模型可能中途卡住，容易导致整轮重跑和重复劳动。
+2. **质量问题**：部分模型时而过松（几乎不删题），时而过严（删除过多），对审题规则理解不稳定。
+
+`Error Hunter` 的设计目标就是把这两类问题流程化处理：先通过 pilot gate 校准质量，再全量执行；过程中持续打点记录，出现卡住时可断点续跑。
+
+## 一句话启动口令（极简）
 
 ```text
 按审题skill开始：先每个模型试跑2批，达标再全量；支持断点续跑。
 ```
 
-## Skill 位置
+## 完整流程说明（按轮次）
 
-- `.cursor/skills/batch-interview-question-audit/`
+### Round 1（第一轮）
 
-> 技能名（frontmatter）：`error-hunter`
+第一轮必须先做 pilot gate，即每个模型先审核 1-2 个批次。你需要先看删题率、偏差和规则理解是否准确，确认通过后再放量跑后续批次。
 
-## 流程规则（重点）
+第一轮结束时，**只输出**以下内容：
 
-- `Round1`：
-  - 先 pilot gate（每模型先审 1-2 批）
-  - 通过后再跑剩余批次
-  - 仅输出 `待二轮审核题表`
-- `Round2+`：
-  - 输出两张交付表：`保留题干重出答案`、`待重新出题`
-  - `JD` 与 `提示词` 两列保持为空
-- 看板产物每轮只保留：
-  - `round{n}_dashboard.html`
-  - `round{n}_dashboard.xlsx`
-- 若卡住：从断点批次继续，不重跑已完成批次
+1. `round1_多模型审核汇总.xlsx`
+2. `待二轮审核题表.xlsx`
+3. `round1_dashboard.html`
+4. `round1_dashboard.xlsx`
 
-## 仓库内容
+> 注意：第一轮不输出“重出题交付表”。
 
-- `SKILL.md`：完整执行规则（pilot、断点恢复、质量漂移告警）
-- `templates.md`：输出模板与轮次路由规则
-- `taxonomy.md`：错误分类与二级错误子类口径
-- `command-templates.md`：极简口令 + 长版附录
-- `scripts/`：看板导出、轮次产物导出、细分统计脚本
+### Round 2 及后续轮次（Round 2+）
 
-## 推荐使用顺序
+第二轮及以后，继续按“先校准、再全量、可断点续跑”的方式执行。  
+每轮结束时，除了汇总和看板之外，还需要输出两张交付表：
 
-1. 复制 `command-templates.md` 里的“极简口令”启动任务  
-2. 先看 pilot gate，再决定是否放量  
-3. 每轮只看 `dashboard.html/xlsx`  
-4. 按轮次规则交付（Round1 不出重出题表，Round2+ 才出）
+1. `保留题干重出答案_交付表.xlsx`
+2. `待重新出题_交付表.xlsx`
+
+并且交付表中：
+
+- `JD` 列保持为空
+- `提示词` 列保持为空
+
+## 看板输出规则（固定）
+
+每一轮只保留两个看板文件：
+
+1. `round{n}_dashboard.html`
+2. `round{n}_dashboard.xlsx`
+
+细分错误统计（例如 A1/B1 等子类）需要写在看板内容里，但不单独保留独立的细分看板文件。
+
+## 卡住后的处理方式
+
+当模型在某一批次卡住时，不需要重跑整轮。标准处理方式如下：
+
+1. 先输出当前进度：`done/running/pending/blocked`
+2. 记录每个模型的 `last_done_batch`
+3. 给出 `resume_from_batch`
+4. 从未完成批次继续执行，不重复已完成批次
+
+## 仓库文件说明
+
+- `SKILL.md`：完整执行规则，包含 pilot gate、断点恢复、质量漂移告警、轮次路由规则等核心逻辑。
+- `templates.md`：统一的输出模板和字段规范。
+- `taxonomy.md`：错误分类口径（包括二级错误子类）。
+- `command-templates.md`：可直接复制的口令模板（极简版 + 长版附录）。
+- `scripts/`：导出看板、导出轮次产物、统计错误类型等辅助脚本。
+
+## 推荐使用步骤（实操版）
+
+1. 打开 `command-templates.md`，复制“极简启动口令”开始任务。
+2. 先完成 pilot gate，不要直接全量跑所有批次。
+3. pilot 通过后再放量执行，并在执行过程中持续看 `dashboard.html/xlsx`。
+4. Round 1 结束后只交付“待二轮审核题表”。
+5. Round 2+ 结束后再交付两张“重出题表”。
+6. 若中途卡住，按断点恢复规则继续，不要整轮重来。
