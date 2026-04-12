@@ -1,9 +1,9 @@
 ---
-name: batch-interview-question-audit
+name: error-hunter
 description: Execute multi-round, multi-model batch review for AI interview questions, including 40-question batching, delete/keep decisions, error taxonomy aggregation, round-specific output routing, and per-model progress visualization. Use when the user mentions 审题、批量审题、题库审核、多轮审核、A/B/C类错误、删除原因统计、审核看板、进度可视化、保留题干重出答案、待重新出题.
 ---
 
-# Batch Interview Question Audit
+# Error Hunter
 
 ## Use This Skill When
 
