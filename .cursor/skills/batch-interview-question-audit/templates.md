@@ -230,7 +230,7 @@ For stall/resume cases, append:
 
 Round-based output routing:
 
-- Round 1: output `待二轮审核题表` for no-error questions, and `一轮审核后需要重出的内容` for questions caught in Round 1.
+- Round 1: formal outputs are `审题结果` and `一轮审核结果汇总`; prepare `待二轮审核题表` as the next round input from no-error questions.
 - Round 2: output `二轮审核后需要重出的内容` and `可保留题目答案`.
 - Round 3 to N: output `X轮审核后需要重出的内容` and `可保留题目答案`; loop regenerated items into the next round until the problematic set is below the manual-check threshold.
 
@@ -238,7 +238,9 @@ Round-based output routing:
 
 `待二轮审核题表` rule:
 
-- Include only questions where all models are `否` after `疑似/肯定` normalization.
+- Generate it from `一轮审核结果汇总`.
+- Include only questions where all Round-1 models are `否` after `疑似/肯定` normalization.
+- Place it under the Round-2 input folder `待二轮审核题表`.
 - Keep fields:
   - `问题`
   - `第一层`
@@ -253,16 +255,10 @@ Round-based output routing:
   - `知识点`
   - `场景`
 
-`一轮审核后需要重出的内容` rule:
-
-- Include questions where any Round-1 model is `是` after normalization.
-- Split into `需要重新出题` when A/C errors appear, and `保留题干重出答案` when only B errors appear.
-- Regenerated results from this set should enter Round 3 to N, not Round 2.
-
 Normalization rule (mandatory):
 
-- `疑似与肯定` in (`肯定有`, `疑似有`) => `是否删除 = 是`
-- `疑似与肯定` in (`肯定无`, `疑似无`) => `是否删除 = 否`
+- `疑似与肯定` in (`肯定有`, `疑似有`, `疑似无`) => `是否删除 = 是`
+- `疑似与肯定` = `肯定无` => `是否删除 = 否`
 
 ### 7.2 Round 2+ Outputs
 
@@ -278,7 +274,6 @@ Preferred output is one `题库审核汇总.xlsx` workbook with three sheets:
 Recommended columns for the three sheets:
 
 - `问题`
-- `最终题目`
 - `第一层`
 - `第二层`
 - `第三层`

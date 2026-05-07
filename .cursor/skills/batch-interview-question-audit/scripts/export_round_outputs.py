@@ -3,7 +3,7 @@
 Export round-specific output files from merged review result.
 
 Rules:
-- Round 1: export no_issue_for_round2.xlsx and round1 re-generation workbook
+- Round 1: export no_issue_for_round2.xlsx as the next round input
 - Round 2+: export one review summary workbook with keep/rewrite_question/rewrite_answer sheets
 
 Usage:
@@ -36,10 +36,8 @@ ROUND1_FIELDS = [
     "场景",
 ]
 
-
 FINAL_SUMMARY_COLUMNS = [
     "问题",
-    "最终题目",
     "第一层",
     "第二层",
     "第三层",
@@ -62,7 +60,6 @@ FINAL_SUMMARY_COLUMNS = [
 
 FIELD_ALIASES = {
     "问题": ["问题", "题目"],
-    "最终题目": ["最终题目", "问题", "题目"],
     "第一层": ["第一层", "参考答案-第一层"],
     "第二层": ["第二层", "参考答案-第二层"],
     "第三层": ["第三层", "参考答案-第三层"],
@@ -151,7 +148,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.round == 1:
-        keep_df, rewrite_question_df, rewrite_answer_df = split_actions(merged)
+        keep_df, _, _ = split_actions(merged)
 
         if "合并_是否删除" in merged.columns:
             r2_df = merged[merged["合并_是否删除"].astype(str).str.strip() == "否"].copy()
@@ -162,10 +159,7 @@ def main() -> None:
 
         out_path = out_dir / "待二轮审核题表.xlsx"
         normalize_columns(r2_df, ROUND1_FIELDS).to_excel(out_path, index=False)
-        rework_path = out_dir / "一轮审核后需要重出的内容.xlsx"
-        export_summary_workbook(pd.DataFrame(), rewrite_question_df, rewrite_answer_df, rework_path)
         print(f"round1_no_issue={out_path}")
-        print(f"round1_rework={rework_path}")
         return
 
     keep_df, rewrite_question_df, rewrite_answer_df = split_actions(merged)
