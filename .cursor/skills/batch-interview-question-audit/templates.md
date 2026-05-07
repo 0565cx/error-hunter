@@ -32,6 +32,56 @@ Status values:
 | Gemini3pro | 9 | 20 | 45% | 21.5% | B>C>A |
 ```
 
+## 2.2 Round-1 Merged Result Columns (5 Models)
+
+Round-1 merged table should keep base columns and append model columns in this pattern:
+
+Base columns:
+
+- `问题`
+- `参考答案-第一层`
+- `参考答案-第二层`
+- `参考答案-第三层`
+- `难度`
+- `行业`
+- `岗位名称`
+- `技能`
+- `技能分类`
+- `知识点`
+
+Per-model columns:
+
+- `{模型名}_是否删除`
+- `{模型名}_错误类型`
+- `{模型名}_删除原因`
+- `{模型名}_疑似与肯定`
+
+Round-1 model list:
+
+- `GPT5.4highfast`
+- `GPT5.4`
+- `Sonnet4.6`
+- `Opus4.5`
+- `Gemini3pro`
+
+## 2.3 Round-2 Merged Result Columns (5 Models)
+
+Round-2 uses same output pattern as Round-1 (5 models, same four per-model columns).
+
+## 2.4 Round-3+ Merged Result Columns (2 Models + 合并)
+
+For round 3 to N, use two models and append final merge field:
+
+- `GPT5.4_是否删除`
+- `GPT5.4_错误类型`
+- `GPT5.4_删除原因`
+- `GPT5.4_疑似与肯定`
+- `Sonnet4.6_是否删除`
+- `Sonnet4.6_错误类型`
+- `Sonnet4.6_删除原因`
+- `Sonnet4.6_疑似与肯定`
+- `合并`（即两个模型“是否删除”的合并结果）
+
 ## 2.1 Dashboard Output Rule (Per Round)
 
 Per round, only keep these dashboard files:
@@ -58,7 +108,6 @@ Use this table after first 1-2 batches per model:
 |---|---:|---:|---:|---|---|
 | GPT5.4 | 2 | 22.5% | +1.2pp | aligned | pass |
 | Sonnet4.6 | 2 | 41.0% | +19.7pp | over-strict on B类 | recalibrate |
-```
 ```
 
 Decision values:
@@ -193,6 +242,11 @@ Round-based output routing:
   - `技能分类`
   - `技能`
   - `知识点`
+
+Normalization rule (mandatory):
+
+- `疑似与肯定` in (`肯定有`, `疑似有`) => `是否删除 = 是`
+- `疑似与肯定` in (`肯定无`, `疑似无`) => `是否删除 = 否`
 
 ### 7.2 Round 2+ Outputs
 

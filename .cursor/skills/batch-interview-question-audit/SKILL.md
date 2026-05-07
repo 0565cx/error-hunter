@@ -5,6 +5,17 @@ description: Execute multi-round, multi-model batch review for AI interview ques
 
 # Error Hunter
 
+## Source Materials (Must Read Before Running)
+
+Before execution, read and align with these materials:
+
+- `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/AI审题流程与材料_3Apr26.xlsx`
+- `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/题目审核流程要求提示词.txt`
+- `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/审题提示词.txt`
+- `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/第一轮审核结果汇总提示词.txt`
+- `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/第二轮审核结果汇总提示词.txt`
+- `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/三-N轮审核结果汇总提示词.txt`
+
 ## Use This Skill When
 
 - User asks to audit a large interview question bank for one or more roles.
@@ -39,6 +50,8 @@ If any item is missing, ask concise follow-up questions before running.
 - Keep one master index with fields:
   - `question_id`, `industry`, `role`, `batch_id`, `question`, `answer_l1`, `answer_l2`, `answer_l3`, `difficulty`, `skill_category`, `skill`, `knowledge_point`.
 
+Required batch size: `40` questions per batch.
+
 ### Step 1.1: Pilot Gate Before Full Run (Quality Calibration)
 
 Before running all batches, run a pilot gate for each model:
@@ -58,10 +71,17 @@ Do not start full 20+ batches until pilot gate passes.
 - Require explicit per-question decision:
   - `is_delete`: `yes` or `no`
   - `confidence`: `肯定有` / `疑似有` / `肯定无` / `疑似无`
-  - `error_type`: use second-level subtype first (for example `A1`/`A2`/`B1`/`B2`/`B3`/`C2`), fallback to `A`/`B`/`C` only when subtype is unknown
+  - `error_type`: use subtype codes from audit prompt (A1~A4, B1~B6, C1~C2); fallback to `A/B/C` only when subtype is unavailable
   - `error_reason`: short Chinese explanation
 - Never sample. Review all questions.
 - Persist per-batch outputs immediately (one file per model per batch) for crash-safe resume.
+
+Per-model review output must append these fields on original rows:
+
+- `是否删除`
+- `错误类型`
+- `删除原因`
+- `疑似与肯定`
 
 ### Step 3: Normalize Labels
 
@@ -105,6 +125,26 @@ This skill does **not** execute "re-generate questions/answers".
     - `rewrite_question`: 题目和答案都需要重出（出现 `A` 或 `C` 类错误）。
   - Hand over both outputs to user for downstream re-generation by another team.
 
+### Step 5.1: Required Folder Structure By Round
+
+Round 1 folders:
+
+- `待一轮审核题表`
+- `审题结果`
+- `一轮审核结果汇总`
+
+Round 2 folders:
+
+- `待二轮审核题表`
+- `二轮审核结果`
+- `二轮审核结果汇总`
+
+Round X (3~N) folders:
+
+- `待X轮审核题表`
+- `X轮审核结果`
+- `X轮审核结果汇总`
+
 ### Step 6: Human Final Check
 
 - Human review checklist:
@@ -136,8 +176,10 @@ For every round, output baseline artifacts:
 Round-specific routing artifacts:
 
 - **Round 1 mandatory**:
+  - 一轮审核结果汇总（5模型字段并排）
   - 待二轮审核题表（all models marked `no` after normalization）
 - **Round 2+ mandatory**:
+  - 二轮或X轮审核结果汇总（对应轮次模型字段并排）
   - 题干保留重出答案表（output based on template #1）
   - 待重新出题表（output based on template #2）
 
@@ -147,12 +189,14 @@ Use templates in [templates.md](templates.md) and taxonomy in [taxonomy.md](taxo
 
 Round 1:
 
-1. 待二轮审核题表（字段按 `templates.md` 定义）
+1. 一轮审核结果汇总（字段按 `templates.md` 的 Round1 汇总列）
+2. 待二轮审核题表（字段按 `templates.md` 定义）
 
 Round 2+:
 
-1. `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/6月迭代/保留题干重出答案的知识点表格模版.xlsx`
-2. `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/6月迭代/待重新出题的知识点表格模版.xlsx`
+1. 二轮或X轮审核结果汇总（字段按 `templates.md` 的 Round2/3+ 汇总列）
+2. `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/6月迭代/保留题干重出答案的知识点表格模版.xlsx`
+3. `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/6月迭代/待重新出题的知识点表格模版.xlsx`
 
 Do not invent new columns unless user explicitly requests.
 
