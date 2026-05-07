@@ -1,13 +1,13 @@
 ---
 name: error-hunter
-description: Execute multi-round, multi-model batch review for AI interview questions, including 40-question batching, delete/keep decisions, error taxonomy aggregation, round-specific output routing, and per-model progress visualization. Use when the user mentions 审题、批量审题、题库审核、多轮审核、A/B/C类错误、删除原因统计、审核看板、进度可视化、保留题干重出答案、待重新出题.
+description: 执行 AI 面试题的多轮、多模型、批量审题流程。适用于大批量 AI 生成面试题的质量审核，包括 40 题分批、是否删除判断、A/B/C 二级错误类型统计、按轮次输出待二轮审核题表或重出题交付表、审核进度看板、断点续跑和模型质量校准。用户提到审题、批量审题、题库审核、多轮审核、A/B/C类错误、删除原因统计、审核看板、进度可视化、保留题干重出答案、待重新出题时使用。
 ---
 
 # Error Hunter
 
-## Source Materials (Must Read Before Running)
+## 运行前必须读取的材料
 
-Before execution, read and align with these materials:
+执行任何审题任务前，必须先读取并对齐以下材料。这些文件定义了真实业务流程、审题提示词、结果汇总口径和输出字段要求。
 
 - `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/AI审题流程与材料_3Apr26.xlsx`
 - `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/题目审核流程要求提示词.txt`
@@ -16,271 +16,304 @@ Before execution, read and align with these materials:
 - `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/第二轮审核结果汇总提示词.txt`
 - `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/三-N轮审核结果汇总提示词.txt`
 
-## Use This Skill When
+## 什么时候使用这个 Skill
 
-- User asks to audit a large interview question bank for one or more roles.
-- Workflow requires multiple models and multiple rounds.
-- User needs per-round statistics on deletion errors.
-- User wants visual tracking for each model's progress and output quality.
+当用户需要审核一批 AI 生成的面试题时，使用本 Skill。典型场景包括：
 
-## Inputs You Must Confirm First
+- 用户需要审核一个或多个岗位的大批量面试题。
+- 审核流程需要多个大模型并行审题。
+- 审核不是一次完成，而是需要一轮、二轮、三轮到 N 轮逐步筛题。
+- 用户需要统计每轮删除题目的错误类型、错误数量和典型例子。
+- 用户希望看到每个模型、每个批次的审核进度，便于发现卡住、过严或过松的问题。
 
-Collect and restate these fields before execution:
+## 执行前必须确认的信息
 
-1. `industry` and `roles` (single role or role list).
-2. Source question file path(s).
-3. Current round number and target round range.
-4. Model lineup by round:
-   - Round 1: `GPT5.4`, `GPT5.4-highfast`, `Sonnet4.6`, `Opus4.5`, `Gemini3pro`.
-   - Round 2: same as Round 1 unless user overrides.
-   - Round 3~N: default `GPT5.4` + `Sonnet4.6`.
-5. Batch size (default `40`).
-6. Prompt source:
-   - Local prompt files if available.
-   - User-provided prompt document link.
+开始审题前，必须向用户确认并复述以下信息：
 
-If any item is missing, ask concise follow-up questions before running.
+1. 本次审核的行业和岗位，岗位可以是单个岗位，也可以是岗位列表。
+2. 待审题表的文件路径。
+3. 当前是第几轮审核，以及计划执行到第几轮。
+4. 每轮使用的模型：
+   - 第一轮默认使用 `GPT5.4highfast`、`GPT5.4`、`Sonnet4.6`、`Opus4.5`、`Gemini3pro`。
+   - 第二轮默认沿用第一轮 5 个模型，除非用户另行指定。
+   - 第三轮到第 N 轮默认使用 `GPT5.4` 和 `Sonnet4.6` 两个模型。
+5. 每批题量，默认每批 `40` 题。
+6. 审题提示词来源，优先使用本项目中的本地提示词文件。
 
-## Standard Workflow
+如果以上信息缺失，不要直接开始执行，应先用简短问题向用户确认。
 
-### Step 1: Prepare Batches
+## 标准审题流程
 
-- Split each role's questions into batches of 40 in stable order.
-- Use deterministic batch IDs: `R{round}-B{index:03d}`.
-- Keep one master index with fields:
-  - `question_id`, `industry`, `role`, `batch_id`, `question`, `answer_l1`, `answer_l2`, `answer_l3`, `difficulty`, `skill_category`, `skill`, `knowledge_point`.
+### 第 1 步：准备批次
 
-Required batch size: `40` questions per batch.
+按岗位分别整理待审题表，并保持原始题目顺序稳定不变。
 
-### Step 1.1: Pilot Gate Before Full Run (Quality Calibration)
+- 每 `40` 题为一批。
+- 批次编号使用固定格式：`R{轮次}-B{三位批次号}`，例如 `R1-B001`。
+- 建立主索引，至少保留以下信息：
+  - `question_id`
+  - `industry`
+  - `role`
+  - `batch_id`
+  - `question`
+  - `answer_l1`
+  - `answer_l2`
+  - `answer_l3`
+  - `difficulty`
+  - `skill_category`
+  - `skill`
+  - `knowledge_point`
 
-Before running all batches, run a pilot gate for each model:
+### 第 1.1 步：先做 Pilot Gate（质量校准）
 
-- Audit first `1-2` batches only (recommended `2`, i.e. up to 80 questions).
-- Compute model delete-rate and compare with peer models and historical expectation.
-- Validate rule understanding:
-  - For deleted questions: check whether reason aligns with error taxonomy and prompt intent.
-  - For kept questions: check whether model can explain why no deletion is needed.
-- If model behavior is unstable (too loose or too strict), stop full run for that model and calibrate prompt, then rerun pilot.
+不要一开始就让所有模型跑完全量。对于大批量任务，必须先让每个模型试跑 `1-2` 个批次，建议试跑 `2` 个批次，也就是最多 `80` 题。
 
-Do not start full 20+ batches until pilot gate passes.
+试跑结束后，需要检查：
 
-### Step 2: Run Round-1 Review (5 Models)
+- 每个模型的删题率是否明显过高或过低。
+- 每个模型的删题率与其他模型中位数相比是否偏差过大。
+- 模型给出的删除理由是否符合审题提示词和错误分类口径。
+- 模型保留题目的理由是否合理，是否存在明显漏审。
 
-- Run each batch through all models independently.
-- Require explicit per-question decision:
-  - `is_delete`: `yes` or `no`
-  - `confidence`: `肯定有` / `疑似有` / `肯定无` / `疑似无`
-  - `error_type`: use subtype codes from audit prompt (A1~A4, B1~B6, C1~C2); fallback to `A/B/C` only when subtype is unavailable
-  - `error_reason`: short Chinese explanation
-- Never sample. Review all questions.
-- Persist per-batch outputs immediately (one file per model per batch) for crash-safe resume.
+如果某个模型明显过松、过严或误解规则，应暂停该模型后续批次，先校准提示词，再重新跑 pilot。不要在 pilot 未通过时直接进入全量审核。
 
-Per-model review output must append these fields on original rows:
+### 第 2 步：逐批审题
+
+每个模型都必须独立审题，不能抽查，也不能只看部分题目。
+
+每个模型的审题结果必须在原表字段基础上追加以下字段：
 
 - `是否删除`
 - `错误类型`
 - `删除原因`
 - `疑似与肯定`
 
-### Step 3: Normalize Labels
+字段填写要求：
 
-- Normalize by confidence:
-  - `肯定有` or `疑似有` => `is_delete = yes`
-  - `肯定无` or `疑似无` => `is_delete = no`
-- Aggregate multi-model decisions per question for the round:
-  - If any model says `yes`, round result is `delete`.
-  - Else round result is `keep`.
+- `是否删除` 只能填写 `是` 或 `否`。
+- `错误类型` 优先填写二级错误类型，例如 `A1~A4`、`B1~B6`、`C1~C2`。如果原始结果无法判断二级类型，才退回到 `A/B/C`。
+- `删除原因` 必须写清楚具体错在哪里，以及正确应该是什么；如果是重复题，按提示词要求可以不填删除原因。
+- `疑似与肯定` 只能填写 `肯定有`、`疑似有`、`肯定无`、`疑似无`。
 
-### Step 3.1: Progress Checkpoint and Resume (Anti-Stall)
+每完成一个批次，都要立即保存该批次结果，避免模型卡住后整轮重跑。
 
-For large runs (20+ batches), enforce checkpointing:
+### 第 3 步：统一“疑似与肯定”和“是否删除”
 
-- Update progress log on every batch state change:
-  - `pending` -> `running` -> `done` / `blocked` / `failed`
-- If a model stalls:
-  - Mark current batch `blocked`.
-  - Record last completed batch ID and processed question count.
-  - Ask/execute "continue from next unfinished batch" instead of restarting whole round.
-- Resume rule:
-  - Never rerun completed (`done`) batches unless user explicitly asks.
-  - Continue from the first non-done batch in order.
+不同模型可能对 `是否删除` 和 `疑似与肯定` 的标注不完全一致，因此每轮汇总前必须做标准化：
 
-### Step 4: Round-2 Re-Review (No-Issue Set)
+- `疑似与肯定` 为 `肯定有` 或 `疑似有` 时，统一视为 `是否删除 = 是`。
+- `疑似与肯定` 为 `肯定无` 或 `疑似无` 时，统一视为 `是否删除 = 否`。
 
-- Collect questions where all Round-1 models marked `no`.
-- Re-run full review on this set with the configured model lineup.
-- Apply same normalization and aggregation rules.
+同一题在多模型汇总时，只要有任一模型标记为删除，本轮合并结果就视为有问题；如果所有模型都标记为不删除，本轮合并结果才视为无问题。
 
-### Step 5: Round-Specific Output Routing (Do Not Re-generate Here)
+### 第 3.1 步：记录进度并支持断点续跑
 
-This skill does **not** execute "re-generate questions/answers".
+当批次数很多时，必须记录每个模型、每个批次的执行状态。状态只能使用：
 
-- Round 1 output:
-  - Export only `no_issue_for_round2` (第一轮无错题，进入第二轮审核).
-  - Do **not** export re-generation handoff files.
-- Round 2 and later output:
-  - Split reviewed problematic items into two output sets only:
-    - `rewrite_answer`: 题干保留，只需要重新出答案（通常是仅 `B` 类错误）。
-    - `rewrite_question`: 题目和答案都需要重出（出现 `A` 或 `C` 类错误）。
-  - Hand over both outputs to user for downstream re-generation by another team.
+- `pending`
+- `running`
+- `done`
+- `blocked`
+- `failed`
 
-### Step 5.1: Required Folder Structure By Round
+如果模型卡住，需要：
 
-Round 1 folders:
+1. 标记当前批次为 `blocked`。
+2. 记录该模型最后一个完成的批次。
+3. 给出下一步应从哪个批次继续。
+4. 继续时只跑未完成批次，不要重复跑已经 `done` 的批次，除非用户明确要求重跑。
+
+### 第 4 步：第一轮结束后整理待二轮审核题表
+
+第一轮结束后，只整理所有模型都没有审出错误的题目，作为第二轮输入。
+
+第一轮结束时不要输出重出题交付表。第一轮只输出：
+
+1. 一轮审核结果汇总。
+2. 待二轮审核题表。
+3. `round1_dashboard.html`。
+4. `round1_dashboard.xlsx`。
+
+待二轮审核题表只保留以下字段：
+
+- `问题`
+- `参考答案-第一层`
+- `参考答案-第二层`
+- `参考答案-第三层`
+- `难度`
+- `建议作答时间`
+- `行业`
+- `岗位名称`
+- `技能分类`
+- `技能`
+- `知识点`
+
+### 第 5 步：第二轮及后续轮次的输出分流
+
+本 Skill 不负责执行“重新出题”或“重新出答案”。它只负责在审核后告诉用户哪些题需要重出答案，哪些题需要题目和答案都重出。
+
+第二轮及后续轮次结束后，按以下规则分流：
+
+- 仅出现 `B` 类错误的题目，进入 `rewrite_answer`，表示题干可以保留，只需要重新出参考答案。
+- 出现 `A` 类或 `C` 类错误的题目，进入 `rewrite_question`，表示题目和答案都需要重新出。
+
+第二轮及后续轮次需要输出：
+
+1. 本轮多模型审核结果汇总。
+2. `保留题干重出答案_交付表.xlsx`。
+3. `待重新出题_交付表.xlsx`。
+4. `round{轮次}_dashboard.html`。
+5. `round{轮次}_dashboard.xlsx`。
+
+两张交付表必须使用用户指定模板，且 `JD` 和 `提示词` 两列保持为空。
+
+### 第 5.1 步：每轮文件夹结构
+
+第一轮使用以下文件夹：
 
 - `待一轮审核题表`
 - `审题结果`
 - `一轮审核结果汇总`
 
-Round 2 folders:
+第二轮使用以下文件夹：
 
 - `待二轮审核题表`
 - `二轮审核结果`
 - `二轮审核结果汇总`
 
-Round X (3~N) folders:
+第三轮到第 N 轮使用以下文件夹：
 
 - `待X轮审核题表`
 - `X轮审核结果`
 - `X轮审核结果汇总`
 
-### Step 6: Human Final Check
+### 第 6 步：人工最终检查
 
-- Human review checklist:
-  - Is wording fluent and natural?
-  - Any phrase unsuitable for interview context?
-  - Any punctuation/symbols hard for TTS broadcast?
-- Mark final action: `keep`, `rewrite_question`, `rewrite_answer`.
+当问题题数量已经少于阈值，或用户要求人工判断时，需要提示用户做最终人工检查。人工检查重点包括：
 
-### Step 7: Next-Round Handover Protocol
+- 题干表达是否通顺。
+- 是否存在不适合面试口语表达的措辞。
+- 是否存在语音播报困难的标点、符号、公式或代码片段。
+- 是否需要继续重出，还是可以人工放行。
 
-- After user provides newly regenerated questions, treat them as next-round input.
-- Continue round workflow (batching, multi-model review, stats, dashboard) on the new set.
+### 第 7 步：重出题回流后的下一轮审核
 
-## Required Outputs Per Round
+当用户从大数据组拿到重新出的题目或答案后，把回流表作为下一轮输入继续审核。下一轮仍然遵守分批、pilot gate、断点续跑、看板输出和轮次分流规则。
 
-For every round, output baseline artifacts:
+## 每轮必须输出的内容
 
-1. **Merged review table** (all model columns + merged decision).
-2. **Deletion error statistics**:
-   - Count by top-level category (`A/B/C`) and second-level subtype (`A1/A2/B1/B2/B3...`).
-   - For each subtype, provide exactly 2 representative examples.
-3. **Progress + quality dashboard**:
-   - Per-model, per-batch status.
-   - Completion ratio and ETA hint.
-   - Delete rate and main error types.
-   - Include detailed subtype stats and subtype examples inside dashboard.
-   - Output format is only `dashboard.html` and `dashboard.xlsx`.
-   - Do **not** output standalone detailed-dashboard files (for example `*_删除错误统计_细分.html/.xlsx/.md`).
-Round-specific routing artifacts:
+每一轮都必须输出基础产物：
 
-- **Round 1 mandatory**:
-  - 一轮审核结果汇总（5模型字段并排）
-  - 待二轮审核题表（all models marked `no` after normalization）
-- **Round 2+ mandatory**:
-  - 二轮或X轮审核结果汇总（对应轮次模型字段并排）
-  - 题干保留重出答案表（output based on template #1）
-  - 待重新出题表（output based on template #2）
+1. 多模型审核结果汇总表。
+2. 删除题目的错误统计，包括一级错误类型和二级错误类型。
+3. 每个二级错误类型给出 2 个代表性例子。
+4. 进度与质量看板。
 
-Use templates in [templates.md](templates.md) and taxonomy in [taxonomy.md](taxonomy.md).
+看板只保留两个文件：
 
-## Mandatory Output Templates By Round
+- `round{轮次}_dashboard.html`
+- `round{轮次}_dashboard.xlsx`
 
-Round 1:
+不要单独输出细分错误统计看板，例如不要保留 `*_删除错误统计_细分.html`、`*_删除错误统计_细分.xlsx` 或 `*_删除错误统计_细分.md`。细分错误统计应嵌入 dashboard 内。
 
-1. 一轮审核结果汇总（字段按 `templates.md` 的 Round1 汇总列）
-2. 待二轮审核题表（字段按 `templates.md` 定义）
+## 每轮汇总表字段规则
 
-Round 2+:
+### 第一轮汇总表
 
-1. 二轮或X轮审核结果汇总（字段按 `templates.md` 的 Round2/3+ 汇总列）
-2. `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/6月迭代/保留题干重出答案的知识点表格模版.xlsx`
-3. `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/6月迭代/待重新出题的知识点表格模版.xlsx`
+第一轮汇总表保留基础字段，并追加 5 个模型的审核结果字段。每个模型追加 4 列：
 
-Do not invent new columns unless user explicitly requests.
+- `{模型名}_是否删除`
+- `{模型名}_错误类型`
+- `{模型名}_删除原因`
+- `{模型名}_疑似与肯定`
 
-## Visualization Rules
+第一轮模型包括：
 
-- Always provide both:
-  - `dashboard.html`
-  - `dashboard.xlsx`
-- Detailed subtype stats should be embedded in dashboard content, not separate dashboard files.
-- Minimum chart set per round:
-  1. Model completion status chart.
-  2. Error category distribution chart.
-- If live status is requested, refresh dashboard after each finished batch.
+- `GPT5.4highfast`
+- `GPT5.4`
+- `Sonnet4.6`
+- `Opus4.5`
+- `Gemini3pro`
 
-## Logging Contract (Mandatory)
+### 第二轮汇总表
 
-Track every model-batch execution in a log file with fields:
+第二轮默认使用与第一轮相同的 5 个模型和相同的列格式，除非用户明确指定其他模型。
 
-- `round`, `model`, `batch_id`, `status`, `start_time`, `end_time`, `duration_sec`
-- `questions_total`, `delete_count`, `keep_count`
-- `error_A_count`, `error_B_count`, `error_C_count`
+### 第三轮到第 N 轮汇总表
+
+第三轮到第 N 轮默认使用 2 个模型：
+
+- `GPT5.4`
+- `Sonnet4.6`
+
+汇总表需要追加两个模型各自的 4 个字段，并增加 `合并` 字段。`合并` 字段表示两个模型的 `是否删除` 合并结果。
+
+## 进度日志要求
+
+每个模型、每个批次都要记录日志，字段包括：
+
+- `round`
+- `model`
+- `batch_id`
+- `status`
+- `start_time`
+- `end_time`
+- `duration_sec`
+- `questions_total`
+- `delete_count`
+- `keep_count`
+- `error_A_count`
+- `error_B_count`
+- `error_C_count`
 - `notes`
 
-`status` must be one of: `pending`, `running`, `done`, `blocked`, `failed`.
+如果模型卡住，必须在日志中写入 `blocked`，并在 `notes` 中说明原因。
 
-If review execution stalls, include a `blocked` row with root-cause notes.
+## 卡住处理规则
 
-## Stall Management SLA
+如果 10 分钟内没有任何批次状态更新，应视为疑似卡住。此时需要输出：
 
-- Heartbeat interval: update progress at least every 1 batch completion.
-- Stall trigger: no batch state update for >= 10 minutes during active run.
-- On stall trigger, produce:
-  1. `current_status_summary` (done/running/pending/blocked counts),
-  2. `last_done_batch_by_model`,
-  3. `resume_plan` (exact next batch ID per model).
-- Resume action must be idempotent: no duplicate write to already finished batch result files.
+1. 当前各模型的 `done/running/pending/blocked` 批次数。
+2. 每个模型最后完成的批次。
+3. 每个模型建议从哪个批次继续。
 
-## Quality Drift Guardrails
+恢复时必须保证幂等：已经完成的批次不重复写入、不重复汇总。
 
-Use both absolute and relative checks during pilot and during long runs:
+## 模型质量漂移处理规则
 
-- Absolute delete-rate alert:
-  - `< 5%` => possibly too lenient
-  - `> 45%` => possibly over-strict
-- Relative drift alert:
-  - model delete-rate deviates by `> 15 percentage points` from peer median.
-- Semantic drift alert:
-  - repeated deletion reasons that do not map to taxonomy/prompt rules.
+在 pilot gate 和长批次审核过程中，都要关注模型是否过严或过松。
 
-If any alert fires:
+触发告警的情况包括：
 
-1. Pause that model's remaining batches.
-2. Show 5 kept + 5 deleted spot examples with model rationale.
-3. Calibrate prompt and rerun pilot batches for that model.
-4. Resume only after alignment is confirmed.
+- 删除率低于 `5%`，可能过松。
+- 删除率高于 `45%`，可能过严。
+- 某模型删除率与同组模型中位数相差超过 `15` 个百分点。
+- 删除理由反复不符合审题提示词或错误分类定义。
 
-## Error Handling Playbook
+如果触发质量告警，需要：
 
-- If a model output is malformed:
-  - retry once with stricter output schema.
-  - if still invalid, mark `failed`, continue with other models, and surface risk.
-- If one model is delayed:
-  - keep round running with other models.
-  - dashboard must highlight delayed model in `blocked/running`.
-- If prompt link cannot be directly read:
-  - ask user to provide prompt text or local file path, then proceed.
+1. 暂停该模型后续批次。
+2. 展示该模型 5 个保留样例和 5 个删除样例。
+3. 说明该模型可能误解了哪条规则。
+4. 校准提示词后重新跑 pilot。
+5. 只有重新通过 pilot 后，才继续全量审核。
 
-## Response Format To User
+## 与用户沟通时的汇报顺序
 
-When reporting progress, use this order:
+向用户汇报时，按以下顺序输出：
 
-1. Current round summary (`done/running/pending/blocked`).
-2. Top risks/blockers (if any).
-3. Deletion error counts by category.
-4. Deletion error counts by subtype.
-5. Two examples per subtype.
-6. Next action and whether user intervention is needed.
+1. 当前轮次的总体进度。
+2. 是否有卡住、失败或质量漂移风险。
+3. 删除题目的一级错误类型统计。
+4. 删除题目的二级错误类型统计。
+5. 每个二级错误类型的 2 个典型例子。
+6. 下一步动作，以及是否需要用户介入。
 
-When stalled or quality-drifted, append:
+如果当前存在卡住或质量漂移，还要追加：
 
-7. `resume_from_batch` per model.
-8. `pilot_recheck_required` (`yes/no`) per model.
+7. 每个模型应从哪个批次继续。
+8. 每个模型是否需要重新 pilot。
 
-## Optional Automation
+## 可用脚本
 
-- Use `scripts/generate_dashboard.py` to build a markdown dashboard from log CSV.
-- Input CSV format is documented in [templates.md](templates.md).
+辅助脚本位于 `scripts/` 目录，用于生成 dashboard、导出轮次产物和整理细分统计。使用脚本时必须遵守本文件中的轮次输出规则和字段规则。
