@@ -25,11 +25,11 @@ Status values:
 
 | Model | Done Batches | Total Batches | Completion | Delete Rate | Main Errors |
 |---|---:|---:|---:|---:|---|
-| GPT5.4 | 12 | 20 | 60% | 24.5% | A>B>C |
-| GPT5.4-highfast | 11 | 20 | 55% | 22.0% | B>A>C |
+| GPT5.5 | 12 | 20 | 60% | 24.5% | A>B>C |
+| GPT5.4 | 11 | 20 | 55% | 22.0% | B>A>C |
 | Sonnet4.6 | 13 | 20 | 65% | 20.5% | A=C>B |
-| Opus4.5 | 10 | 20 | 50% | 26.0% | A>C>B |
-| Gemini3pro | 9 | 20 | 45% | 21.5% | B>C>A |
+| Opus4.7 | 10 | 20 | 50% | 26.0% | A>C>B |
+| Gemini3.1pro | 9 | 20 | 45% | 21.5% | B>C>A |
 ```
 
 ## 2.2 Round-1 Merged Result Columns (5 Models)
@@ -39,15 +39,17 @@ Round-1 merged table should keep base columns and append model columns in this p
 Base columns:
 
 - `问题`
-- `参考答案-第一层`
-- `参考答案-第二层`
-- `参考答案-第三层`
+- `第一层`
+- `第二层`
+- `第三层`
 - `难度`
+- `建议作答时间`
 - `行业`
 - `岗位名称`
-- `技能`
 - `技能分类`
+- `技能`
 - `知识点`
+- `场景`
 
 Per-model columns:
 
@@ -58,28 +60,34 @@ Per-model columns:
 
 Round-1 model list:
 
-- `GPT5.4highfast`
+- `GPT5.5`
 - `GPT5.4`
 - `Sonnet4.6`
-- `Opus4.5`
-- `Gemini3pro`
+- `Opus4.7`
+- `Gemini3.1pro`
 
 ## 2.3 Round-2 Merged Result Columns (5 Models)
 
-Round-2 uses same output pattern as Round-1 (5 models, same four per-model columns).
+Round-2 updates the Round-1 merged result table. Each model should append five columns:
+
+- `{模型名}_是否删除`
+- `{模型名}_错误类型`
+- `{模型名}_删除原因`
+- `{模型名}_疑似与肯定`
+- `{模型名}_删除轮次`
 
 ## 2.4 Round-3+ Merged Result Columns (2 Models + 合并)
 
 For round 3 to N, use two models and append final merge field:
 
-- `GPT5.4_是否删除`
-- `GPT5.4_错误类型`
-- `GPT5.4_删除原因`
-- `GPT5.4_疑似与肯定`
-- `Sonnet4.6_是否删除`
-- `Sonnet4.6_错误类型`
-- `Sonnet4.6_删除原因`
-- `Sonnet4.6_疑似与肯定`
+- `GPT5.5_是否删除`
+- `GPT5.5_错误类型`
+- `GPT5.5_删除原因`
+- `GPT5.5_疑似与肯定`
+- `Gemini3.1pro_是否删除`
+- `Gemini3.1pro_错误类型`
+- `Gemini3.1pro_删除原因`
+- `Gemini3.1pro_疑似与肯定`
 - `合并`（即两个模型“是否删除”的合并结果）
 
 ## 2.1 Dashboard Output Rule (Per Round)
@@ -153,9 +161,9 @@ Decision values:
 ```mermaid
 xychart-beta
   title "Round {round} model completion"
-  x-axis ["GPT5.4","GPT5.4-highfast","Sonnet4.6","Opus4.5","Gemini3pro"]
+  x-axis ["GPT5.5","GPT5.4","Sonnet4.6","Opus4.7","Gemini3.1pro"]
   y-axis "Done Batches" 0 --> {max_batches}
-  bar [{gpt54_done},{gpt54_highfast_done},{sonnet46_done},{opus45_done},{gemini_done}]
+  bar [{gpt55_done},{gpt54_done},{sonnet46_done},{opus47_done},{gemini31_done}]
 ```
 
 ```text
@@ -222,19 +230,20 @@ For stall/resume cases, append:
 
 Round-based output routing:
 
-- Round 1: output `待二轮审核题表` only.
-- Round 2 and later: output two handoff files for downstream re-generation.
+- Round 1: output `待二轮审核题表` for no-error questions, and `一轮审核后需要重出的内容` for questions caught in Round 1.
+- Round 2: output `二轮审核后需要重出的内容` and `可保留题目答案`.
+- Round 3 to N: output `X轮审核后需要重出的内容` and `可保留题目答案`; loop regenerated items into the next round until the problematic set is below the manual-check threshold.
 
-### 7.1 Round 1 Output (No re-generation tables)
+### 7.1 Round 1 Outputs
 
 `待二轮审核题表` rule:
 
 - Include only questions where all models are `否` after `疑似/肯定` normalization.
 - Keep fields:
   - `问题`
-  - `参考答案-第一层`
-  - `参考答案-第二层`
-  - `参考答案-第三层`
+  - `第一层`
+  - `第二层`
+  - `第三层`
   - `难度`
   - `建议作答时间`
   - `行业`
@@ -242,6 +251,13 @@ Round-based output routing:
   - `技能分类`
   - `技能`
   - `知识点`
+  - `场景`
+
+`一轮审核后需要重出的内容` rule:
+
+- Include questions where any Round-1 model is `是` after normalization.
+- Split into `需要重新出题` when A/C errors appear, and `保留题干重出答案` when only B errors appear.
+- Regenerated results from this set should enter Round 3 to N, not Round 2.
 
 Normalization rule (mandatory):
 
@@ -250,14 +266,39 @@ Normalization rule (mandatory):
 
 ### 7.2 Round 2+ Outputs
 
-1. `题干保留，重出答案`:
-   - Template path: `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/6月迭代/保留题干重出答案的知识点表格模版.xlsx`
-   - Rule: include items with final action `rewrite_answer` (typically only B类).
-2. `题目和答案都重出`:
-   - Template path: `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/6月迭代/待重新出题的知识点表格模版.xlsx`
-   - Rule: include items with final action `rewrite_question` (A类 or C类).
+Preferred output is one `题库审核汇总.xlsx` workbook with three sheets:
 
-Column-fill rule for both handoff files:
+1. `可保留题目答案`:
+   - Include items with final action `keep`.
+2. `需要重新出题`:
+   - Include items with final action `rewrite_question` (A类 or C类).
+3. `保留题干重出答案`:
+   - Include items with final action `rewrite_answer` (typically only B类).
+
+Recommended columns for the three sheets:
+
+- `问题`
+- `最终题目`
+- `第一层`
+- `第二层`
+- `第三层`
+- `技能分类`
+- `技能`
+- `知识点`
+- `难度`
+- `行业`
+- `岗位名称`
+- `场景`
+- `一审_是否删除`
+- `一审_删除原因`
+- `二审_是否删除`
+- `二审_删除原因`
+- `题目是否修改`
+- `是否重新出题`
+- `一审_错误大类集合`
+- `二审_错误大类集合`
+
+Column-fill rule if a downstream handoff file still requires `JD` or `提示词`:
 
 - Keep `JD` empty.
 - Keep `提示词` empty.
