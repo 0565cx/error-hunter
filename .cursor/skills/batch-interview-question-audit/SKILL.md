@@ -222,9 +222,11 @@ python scripts/merge_round1_results.py \
 
 - `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/2D3D动画师题目多模型二轮审核结果_副本.xlsx`
 
-二轮审核后需要重出的内容样例：
+重出内容表样例：
 
-- `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/2D3D动画师_题库审核汇总_副本.xlsx`
+- 可保留的题目：参考 `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/2D3D动画师_题库审核汇总_副本.xlsx` 的 `可保留题目答案` sheet。
+- 需要重新出题：参考 `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/重新出题表格模版.xlsx`。
+- 重新出答案：参考 `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/重出答案表格模版.xlsx`。
 
 本 Skill 内置的二轮汇总脚本：
 
@@ -247,7 +249,9 @@ python scripts/merge_round2_results.py \
 脚本输出：
 
 - `二轮审核结果汇总.xlsx`
-- `2轮题库审核汇总.xlsx`
+- `2轮_<行业>_<岗位>_可保留的题目.xlsx`
+- `2轮_<行业>_<岗位>_需要重新出题.xlsx`
+- `2轮_<行业>_<岗位>_重新出答案.xlsx`
 - `round2_error_stats.xlsx`
 
 ## 三到 N 轮审核
@@ -298,9 +302,11 @@ X 轮审核结果汇总样例：
 
 - `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/2D3D动画师题目多模型一轮审核结果_副本.xlsx`
 
-X 轮审核后需要重出的内容样例：
+重出内容表样例：
 
-- `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/2D3D动画师_题库审核汇总_副本.xlsx`
+- 可保留的题目：参考 `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/2D3D动画师_题库审核汇总_副本.xlsx` 的 `可保留题目答案` sheet。
+- 需要重新出题：参考 `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/重新出题表格模版.xlsx`。
+- 重新出答案：参考 `/Users/risei/Desktop/北森-测评产品经理/AI面试官/专业能力/AI审题/AI审题流程与材料/重出答案表格模版.xlsx`。
 
 本 Skill 内置的三到 N 轮汇总脚本：
 
@@ -321,7 +327,9 @@ python scripts/merge_roundx_results.py \
 脚本输出：
 
 - `3轮审核结果汇总.xlsx`
-- `3轮题库审核汇总.xlsx`
+- `3轮_<行业>_<岗位>_可保留的题目.xlsx`
+- `3轮_<行业>_<岗位>_需要重新出题.xlsx`
+- `3轮_<行业>_<岗位>_重新出答案.xlsx`
 - `round3_error_stats.xlsx`
 
 ## 通用执行规则
